@@ -83,12 +83,16 @@ func TestDockerManager(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, containerID)
 
-	// 确保在测试结束后停止并删除容器
+	// 确保在测试结束后清理容器
 	defer func() {
-		err := dm.StopContainer(ctx, containerID)
-		assert.NoError(t, err)
-		err = dm.RemoveContainer(ctx, containerID)
-		assert.NoError(t, err)
+		// 检查容器是否存在
+		_, err := dm.client.ContainerInspect(ctx, containerID)
+		if err == nil {
+			err := dm.StopContainer(ctx, containerID)
+			assert.NoError(t, err)
+			err = dm.RemoveContainer(ctx, containerID)
+			assert.NoError(t, err)
+		}
 	}()
 
 	// 启动容器
