@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/cynic-1/blockchain-teaching-system/internal/api"
+	"github.com/cynic-1/blockchain-teaching-system/internal/auth"
 	"github.com/cynic-1/blockchain-teaching-system/internal/config"
 	"github.com/cynic-1/blockchain-teaching-system/internal/database"
 	"github.com/cynic-1/blockchain-teaching-system/internal/docker"
@@ -22,6 +23,11 @@ func NewServer(config *config.Config) (*Server, error) {
 	}
 
 	dockerManager, err := docker.NewDockerManager(config.DockerAPIVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	err = auth.InitSecretKey()
 	if err != nil {
 		return nil, err
 	}

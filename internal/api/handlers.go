@@ -57,7 +57,16 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Login successful"})
+	token, err := auth.CreateToken(user.ID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Create token errors"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Login successful",
+		"token":   token,
+	})
 }
 
 func (h *Handler) CreateContainer(c *gin.Context) {
