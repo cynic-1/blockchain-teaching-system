@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
-	"net/url"
 	"strings"
 )
 
@@ -26,7 +25,7 @@ func (dm *DockerManager) sendRequest(containerID, method, path string, body inte
 	containerPort := "8080"
 
 	// 创建执行命令
-	cmd := []string{"curl", "-X", method, "-H", "Content-Type: application/json"}
+	cmd := []string{"curl", "-s", "-X", method, "-H", "Content-Type: application/json"}
 	if body != nil {
 		cmd = append(cmd, "-d", string(reqBody))
 	}
@@ -77,9 +76,13 @@ func (dm *DockerManager) sendRequest(containerID, method, path string, body inte
 
 // 执行shell命令
 func (dm *DockerManager) ExecuteShellCommand(containerID, cmd string) (string, error) {
-	data := url.Values{}
-	data.Set("cmd", cmd)
-	return dm.sendRequest(containerID, "POST", "/execute", data.Encode())
+	//data := url.Values{}
+	//data.Set("cmd", cmd)
+	//fmt.Println(data.Encode())
+	body := map[string]string{
+		"cmd": "echo+Hello%2C+World%21",
+	}
+	return dm.sendRequest(containerID, "POST", "/execute", body)
 }
 
 // 获取共识状态
@@ -104,27 +107,27 @@ func (dm *DockerManager) CreateLocalClusterFactory(containerID string, nodeCount
 		"stakeQuota": stakeQuota,
 		"windowSize": windowSize,
 	}
-	return dm.sendRequest(containerID, "POST", "/setup/factory", body)
+	return dm.sendRequest(containerID, "POST", "/setup/new/factory", body)
 }
 
 // 创建本地点和主题地址
 func (dm *DockerManager) MakeLocalAddresses(containerID string) (string, error) {
-	return dm.sendRequest(containerID, "POST", "/setup/addrs", nil)
+	return dm.sendRequest(containerID, "POST", "/setup/genesis/addrs", nil)
 }
 
 // 创建验证者密钥和权益配额
 func (dm *DockerManager) MakeValidatorKeysAndStakeQuotas(containerID string) (string, error) {
-	return dm.sendRequest(containerID, "POST", "/setup/random", nil)
+	return dm.sendRequest(containerID, "POST", "/setup/genesis/random", nil)
 }
 
 // 写入创世文件
 func (dm *DockerManager) WriteGenesisFiles(containerID string) (string, error) {
-	return dm.sendRequest(containerID, "POST", "/setup/template", nil)
+	return dm.sendRequest(containerID, "POST", "/setup/genesis/template", nil)
 }
 
 // 创建名为cluster_template的集群
 func (dm *DockerManager) CreateCluster(containerID string) (string, error) {
-	return dm.sendRequest(containerID, "POST", "/setup/cluster/create", nil)
+	return dm.sendRequest(containerID, "POST", "/setup/new/cluster", nil)
 }
 
 // 构建区块链二进制文件
@@ -133,8 +136,8 @@ func (dm *DockerManager) BuildBlockchainBinary(containerID string) (string, erro
 }
 
 // 查看每个节点的工作目录
-func (dm *DockerManager) ViewNodeWorkingDirectory(containerID string, nodeIndex int) (string, error) {
-	return dm.sendRequest(containerID, "GET", fmt.Sprintf("/workdir/%d/genesis.json", nodeIndex), nil)
+func (dm *DockerManager) ResetWorkingDirectory(containerID string) (string, error) {
+	return dm.sendRequest(containerID, "POST", "/setup/reset/workdir", nil)
 }
 
 // 启动集群

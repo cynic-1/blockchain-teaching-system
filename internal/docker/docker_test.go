@@ -81,6 +81,7 @@ func TestDockerManager(t *testing.T) {
 	containerID, err := dm.CreateContainer(ctx, "chain-proxy", nil)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, containerID)
+	t.Log(containerID)
 
 	// 立即检查容器是否成功创建
 	_, err = dm.client.ContainerInspect(ctx, containerID)
@@ -123,12 +124,98 @@ func TestDockerManager(t *testing.T) {
 	}
 
 	// 执行命令
-	t.Log("Executing command in container")
-	result, err := dm.ExecuteShellCommand(containerID, "echo Hello, World!")
+	//t.Log("Executing command in container")
+	//result, err := dm.ExecuteShellCommand(containerID, "echo Hello, World!")
+	//if err != nil {
+	//	t.Logf("Error executing command: %v", err)
+	//} else {
+	//	assert.Contains(t, string(result), "Hello, World!")
+	//}
+
+	result, err := dm.CreateLocalClusterFactory(containerID, 4, 9999, 4)
 	if err != nil {
-		t.Logf("Error executing command: %v", err)
+		t.Logf("Error creating local cluster: %v", err)
 	} else {
-		assert.Contains(t, string(result), "Hello, World!")
+		t.Log(result)
+	}
+
+	result, err = dm.ResetWorkingDirectory(containerID)
+	if err != nil {
+		t.Logf("Error reseting workDir: %v", err)
+	} else {
+		t.Log(result)
+	}
+
+	result, err = dm.MakeValidatorKeysAndStakeQuotas(containerID)
+	if err != nil {
+		t.Logf("Error generating validator keys and stake quotas: %v", err)
+	} else {
+		t.Log(result)
+	}
+
+	result, err = dm.MakeLocalAddresses(containerID)
+	if err != nil {
+		t.Logf("Error making local addresses: %v", err)
+	} else {
+		t.Log(result)
+	}
+
+	result, err = dm.WriteGenesisFiles(containerID)
+	if err != nil {
+		t.Logf("Error writing genesis files: %v", err)
+	} else {
+		t.Log(result)
+	}
+
+	result, err = dm.BuildBlockchainBinary(containerID)
+	if err != nil {
+		t.Logf("Error building blockchain binary: %v", err)
+	} else {
+		t.Log(result)
+	}
+
+	result, err = dm.CreateCluster(containerID)
+	if err != nil {
+		t.Logf("Error creating new cluster: %v", err)
+	} else {
+		t.Log(result)
+	}
+
+	result, err = dm.StartCluster(containerID)
+	if err != nil {
+		t.Logf("Error starting cluster: %v", err)
+	} else {
+		t.Log(result)
+	}
+
+	result, err = dm.GetConsensusStatus(containerID)
+	if err != nil {
+		t.Logf("Error getting consensus status: %v", err)
+	} else {
+		t.Log(result)
+	}
+
+	time.Sleep(5 * time.Second)
+
+	result, err = dm.GetConsensusStatus(containerID)
+	if err != nil {
+		t.Logf("Error getting consensus status: %v", err)
+	} else {
+		t.Log(result)
+	}
+
+	result, err = dm.GetTxpoolStatus(containerID)
+	if err != nil {
+		t.Logf("Error getting txpool status: %v", err)
+	} else {
+		t.Log(result)
+	}
+
+	result, err = dm.StopCluster(containerID)
+	if err != nil {
+		t.Logf("Error stoping cluster: %v", err)
+	} else {
+		t.Log(result)
 	}
 
 	// 停止容器

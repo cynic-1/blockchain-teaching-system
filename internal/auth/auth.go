@@ -48,8 +48,8 @@ func CreateToken(userID string) (string, error) {
 	//atClaims["authorized"] = true
 	atClaims["user_id"] = userID
 
-	// expire after 120 mins
-	atClaims["exp"] = time.Now().Add(time.Minute * 120).Unix()
+	// expire after 100 mins
+	atClaims["exp"] = time.Now().Add(time.Minute * 100).Unix()
 	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
 	token, err := at.SignedString(secretKey)
 	if err != nil {
