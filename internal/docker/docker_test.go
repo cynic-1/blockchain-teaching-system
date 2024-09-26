@@ -124,15 +124,15 @@ func TestDockerManager(t *testing.T) {
 	}
 
 	// 执行命令
-	//t.Log("Executing command in container")
-	//result, err := dm.ExecuteShellCommand(containerID, "echo Hello, World!")
-	//if err != nil {
-	//	t.Logf("Error executing command: %v", err)
-	//} else {
-	//	assert.Contains(t, string(result), "Hello, World!")
-	//}
+	t.Log("Executing command in container")
+	result, err := dm.ExecuteShellCommand(containerID, []string{"echo", "hello world!"})
+	if err != nil {
+		t.Logf("Error executing command: %v", err)
+	} else {
+		assert.Contains(t, string(result), "Hello, World!")
+	}
 
-	result, err := dm.CreateLocalClusterFactory(containerID, 4, 9999, 4)
+	result, err = dm.CreateLocalClusterFactory(containerID, 4, 9999, 4)
 	if err != nil {
 		t.Logf("Error creating local cluster: %v", err)
 	} else {

@@ -1,17 +1,50 @@
 package api
 
 import (
+	"fmt"
 	"github.com/cynic-1/blockchain-teaching-system/internal/auth"
 	"github.com/cynic-1/blockchain-teaching-system/internal/database"
 	"github.com/cynic-1/blockchain-teaching-system/internal/docker"
 	"github.com/cynic-1/blockchain-teaching-system/internal/models"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"strconv"
 )
 
 type Handler struct {
 	DB     *database.Database
 	Docker *docker.DockerManager
+}
+
+// httpError 用于封装 HTTP 错误
+type httpError struct {
+	StatusCode int
+	Message    string
+}
+
+// Error 实现 error 接口
+func (e *httpError) Error() string {
+	return fmt.Sprintf("HTTP %d: %s", e.StatusCode, e.Message)
+}
+
+// getUserFromContext 从 gin.Context 中获取用户信息
+func (h *Handler) getUserFromContext(c *gin.Context) (*models.User, error) {
+	userIDInterface, exists := c.Get("userID")
+	if !exists {
+		return nil, &httpError{http.StatusBadRequest, "No userID"}
+	}
+
+	userID, ok := userIDInterface.(string)
+	if !ok {
+		return nil, &httpError{http.StatusInternalServerError, "UserID is not a string"}
+	}
+
+	user, err := h.DB.GetUser(userID)
+	if err != nil {
+		return nil, &httpError{http.StatusInternalServerError, "Failed to get user"}
+	}
+
+	return user, nil
 }
 
 func (h *Handler) Register(c *gin.Context) {
@@ -80,21 +113,13 @@ func (h *Handler) CreateContainer(c *gin.Context) {
 	//	return
 	//}
 
-	userIDInterface, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No userID"})
-		return
-	}
-
-	userID, ok := userIDInterface.(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "UserID is not a string"})
-		return
-	}
-
-	user, err := h.DB.GetUser(userID)
+	user, err := h.getUserFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user"})
+		if httpErr, ok := err.(*httpError); ok {
+			c.JSON(httpErr.StatusCode, gin.H{"error": httpErr.Message})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unknown error"})
 		return
 	}
 
@@ -114,21 +139,13 @@ func (h *Handler) CreateContainer(c *gin.Context) {
 }
 
 func (h *Handler) StartContainer(c *gin.Context) {
-	userIDInterface, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "No userID"})
-		return
-	}
-
-	userID, ok := userIDInterface.(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "UserID is not a string"})
-		return
-	}
-
-	user, err := h.DB.GetUser(userID)
+	user, err := h.getUserFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user"})
+		if httpErr, ok := err.(*httpError); ok {
+			c.JSON(httpErr.StatusCode, gin.H{"error": httpErr.Message})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unknown error"})
 		return
 	}
 
@@ -150,21 +167,13 @@ func (h *Handler) Exec(c *gin.Context) {
 		return
 	}
 
-	userIDInterface, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No userID"})
-		return
-	}
-
-	userID, ok := userIDInterface.(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "UserID is not a string"})
-		return
-	}
-
-	user, err := h.DB.GetUser(userID)
+	user, err := h.getUserFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user"})
+		if httpErr, ok := err.(*httpError); ok {
+			c.JSON(httpErr.StatusCode, gin.H{"error": httpErr.Message})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unknown error"})
 		return
 	}
 
@@ -174,6 +183,242 @@ func (h *Handler) Exec(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"output": output})
+}
+
+func (h *Handler) GetConsensusStatus(c *gin.Context) {
+	user, err := h.getUserFromContext(c)
+	if err != nil {
+		handleHttpError(c, err)
+		return
+	}
+
+	status, err := h.Docker.GetConsensusStatus(user.ContainerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": status})
+}
+
+func (h *Handler) GetTxpoolStatus(c *gin.Context) {
+	user, err := h.getUserFromContext(c)
+	if err != nil {
+		handleHttpError(c, err)
+		return
+	}
+
+	status, err := h.Docker.GetTxpoolStatus(user.ContainerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": status})
+}
+
+func (h *Handler) GetBlockAtHeight(c *gin.Context) {
+	user, err := h.getUserFromContext(c)
+	if err != nil {
+		handleHttpError(c, err)
+		return
+	}
+
+	heightStr := c.Query("height")
+	height, err := strconv.Atoi(heightStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid height"})
+		return
+	}
+
+	block, err := h.Docker.GetBlockAtHeight(user.ContainerID, height)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"block": block})
+}
+
+func (h *Handler) CreateLocalClusterFactory(c *gin.Context) {
+	user, err := h.getUserFromContext(c)
+	if err != nil {
+		handleHttpError(c, err)
+		return
+	}
+
+	var req struct {
+		NodeCount  int `json:"nodeCount"`
+		StakeQuota int `json:"stakeQuota"`
+		WindowSize int `json:"windowSize"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result, err := h.Docker.CreateLocalClusterFactory(user.ContainerID, req.NodeCount, req.StakeQuota, req.WindowSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"result": result})
+}
+
+func (h *Handler) MakeLocalAddresses(c *gin.Context) {
+	user, err := h.getUserFromContext(c)
+	if err != nil {
+		handleHttpError(c, err)
+		return
+	}
+
+	result, err := h.Docker.MakeLocalAddresses(user.ContainerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"result": result})
+}
+
+func (h *Handler) MakeValidatorKeysAndStakeQuotas(c *gin.Context) {
+	user, err := h.getUserFromContext(c)
+	if err != nil {
+		handleHttpError(c, err)
+		return
+	}
+
+	result, err := h.Docker.MakeValidatorKeysAndStakeQuotas(user.ContainerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"result": result})
+}
+
+func (h *Handler) WriteGenesisFiles(c *gin.Context) {
+	user, err := h.getUserFromContext(c)
+	if err != nil {
+		handleHttpError(c, err)
+		return
+	}
+
+	result, err := h.Docker.WriteGenesisFiles(user.ContainerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"result": result})
+}
+
+func (h *Handler) CreateCluster(c *gin.Context) {
+	user, err := h.getUserFromContext(c)
+	if err != nil {
+		handleHttpError(c, err)
+		return
+	}
+
+	result, err := h.Docker.CreateCluster(user.ContainerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"result": result})
+}
+
+func (h *Handler) BuildBlockchainBinary(c *gin.Context) {
+	user, err := h.getUserFromContext(c)
+	if err != nil {
+		handleHttpError(c, err)
+		return
+	}
+
+	result, err := h.Docker.BuildBlockchainBinary(user.ContainerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"result": result})
+}
+
+func (h *Handler) ResetWorkingDirectory(c *gin.Context) {
+	user, err := h.getUserFromContext(c)
+	if err != nil {
+		handleHttpError(c, err)
+		return
+	}
+
+	result, err := h.Docker.ResetWorkingDirectory(user.ContainerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"result": result})
+}
+
+func (h *Handler) StartCluster(c *gin.Context) {
+	user, err := h.getUserFromContext(c)
+	if err != nil {
+		handleHttpError(c, err)
+		return
+	}
+
+	result, err := h.Docker.StartCluster(user.ContainerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"result": result})
+}
+
+func (h *Handler) StopCluster(c *gin.Context) {
+	user, err := h.getUserFromContext(c)
+	if err != nil {
+		handleHttpError(c, err)
+		return
+	}
+
+	result, err := h.Docker.StopCluster(user.ContainerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"result": result})
+}
+
+func (h *Handler) StopContainer(c *gin.Context) {
+	user, err := h.getUserFromContext(c)
+	if err != nil {
+		handleHttpError(c, err)
+		return
+	}
+
+	err = h.Docker.StopContainer(c.Request.Context(), user.ContainerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"result": "Successfully Stopped Container"})
+}
+
+func (h *Handler) RemoveContainer(c *gin.Context) {
+	user, err := h.getUserFromContext(c)
+	if err != nil {
+		handleHttpError(c, err)
+		return
+	}
+
+	err = h.Docker.RemoveContainer(c.Request.Context(), user.ContainerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"result": "Successfully Removed Container"})
+}
+
+// 辅助函数，用于处理 HTTP 错误
+func handleHttpError(c *gin.Context, err error) {
+	if httpErr, ok := err.(*httpError); ok {
+		c.JSON(httpErr.StatusCode, gin.H{"error": httpErr.Message})
+	} else {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unknown error"})
+	}
 }
 
 // 其他处理器方法...
