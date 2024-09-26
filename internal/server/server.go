@@ -26,11 +26,11 @@ func NewServer(config *config.Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	err = auth.InitSecretKey()
-	if err != nil {
-		return nil, err
-	}
+	//
+	//err = auth.InitSecretKey()
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	server := &Server{
 		router: gin.Default(),
@@ -48,11 +48,22 @@ func (s *Server) setupRoutes() {
 		DB:     s.db,
 		Docker: s.docker,
 	}
+	// 公开路由组，不需要 token 验证
+	public := s.router.Group("/api")
+	{
+		public.POST("/register", handler.Register)
+		public.POST("/login", handler.Login)
+	}
 
-	s.router.POST("/register", handler.Register)
-	s.router.POST("/login", handler.Login)
-	s.router.POST("/container", handler.CreateContainer)
-	// 添加其他路由...
+	// 受保护的路由组，需要 token 验证
+	protected := s.router.Group("/api")
+	protected.Use(auth.JWTMiddleware())
+	{
+		protected.POST("/container/create", handler.CreateContainer)
+		protected.POST("/container/start", handler.CreateContainer)
+		protected.POST("/container/exec", handler.Exec)
+		// 添加其他需要验证的路由...
+	}
 }
 
 func (s *Server) Run() error {

@@ -8,6 +8,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
 	"strings"
+	"time"
 )
 
 func (dm *DockerManager) sendRequest(containerID, method, path string, body interface{}) (string, error) {
@@ -74,15 +75,63 @@ func (dm *DockerManager) sendRequest(containerID, method, path string, body inte
 	return output, nil
 }
 
-// 执行shell命令
-func (dm *DockerManager) ExecuteShellCommand(containerID, cmd string) (string, error) {
-	//data := url.Values{}
-	//data.Set("cmd", cmd)
-	//fmt.Println(data.Encode())
-	body := map[string]string{
-		"cmd": "echo+Hello%2C+World%21",
+func (dm *DockerManager) checkContainerReady(ctx context.Context, containerID string) error {
+	for i := 0; i < 10; i++ {
+		container, err := dm.client.ContainerInspect(ctx, containerID)
+		if err != nil {
+			return err
+		}
+		if container.State.Running {
+			return nil
+		}
+		time.Sleep(time.Second)
 	}
-	return dm.sendRequest(containerID, "POST", "/execute", body)
+	return fmt.Errorf("container did not start within the expected time")
+}
+
+// 执行shell命令
+func (dm *DockerManager) ExecuteShellCommand(containerID string, cmd []string) (string, error) {
+	execConfig := container.ExecOptions{
+		Cmd:          cmd,
+		AttachStdout: true,
+		AttachStderr: true,
+	}
+
+	ctx := context.Background()
+
+	err := dm.checkContainerReady(ctx, containerID)
+	if err != nil {
+		return "", err
+	}
+
+	execID, err := dm.client.ContainerExecCreate(ctx, containerID, execConfig)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := dm.client.ContainerExecAttach(ctx, execID.ID, container.ExecStartOptions{})
+	if err != nil {
+		return "", err
+	}
+	defer resp.Close()
+
+	// 使用 stdcopy.StdCopy 来分离 STDOUT 和 STDERR
+	var outBuf, errBuf bytes.Buffer
+	_, err = stdcopy.StdCopy(&outBuf, &errBuf, resp.Reader)
+	if err != nil {
+		return string([]byte("")), fmt.Errorf("error reading exec output: %v", err)
+	}
+
+	// 合并 STDOUT 和 STDERR
+	output := outBuf.String()
+	errOutput := errBuf.String()
+
+	// 如果有错误输出，添加到输出中
+	if errOutput != "" {
+		output += "\nError output: " + errOutput
+	}
+
+	return output, nil
 }
 
 // 获取共识状态

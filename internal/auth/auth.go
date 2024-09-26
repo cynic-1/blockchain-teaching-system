@@ -2,14 +2,17 @@ package auth
 
 import (
 	"crypto/rand"
-	"encoding/base64"
+	"fmt"
 	"github.com/cynic-1/blockchain-teaching-system/internal/models"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
+	"net/http"
+	"strings"
 	"time"
 )
 
-var secretKey string
+var secretKey []byte
 
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
@@ -25,19 +28,14 @@ func ValidateUser(user *models.User, password string) bool {
 	return CheckPasswordHash(password, user.Password)
 }
 
-func generateSecretKey(length int) (string, error) {
-	bytes := make([]byte, length)
+func InitSecretKey() error {
+	bytes := make([]byte, 32)
 	_, err := rand.Read(bytes)
 	if err != nil {
-		return "", err
+		return err
 	}
-	return base64.URLEncoding.EncodeToString(bytes), nil
-}
-
-func InitSecretKey() error {
-	var err error
-	secretKey, err = generateSecretKey(32)
-	return err
+	secretKey = bytes
+	return nil
 }
 
 // 创建token
@@ -58,32 +56,60 @@ func CreateToken(userID string) (string, error) {
 	return token, nil
 }
 
-// 验证token
-func VerifyTokenAndExtractUserID(tokenString string) (string, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, jwt.ErrSignatureInvalid
+func JWTMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
+			c.Abort()
+			return
 		}
-		return secretKey, nil
-	})
 
-	if err != nil {
-		return "", err
+		parts := strings.SplitN(authHeader, " ", 2)
+		if !(len(parts) == 2 && parts[0] == "Bearer") {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header format must be Bearer <token>"})
+			c.Abort()
+			return
+		}
+
+		token, err := jwt.Parse(parts[1], func(token *jwt.Token) (interface{}, error) {
+			// 验证签名算法
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			// 返回用于验证签名的密钥
+			return secretKey, nil
+		})
+
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			c.Abort()
+			return
+		}
+
+		//if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		//	// 将 claims 存储在上下文中
+		//	c.Set("claims", claims)
+		//	c.Next()
+		//} else {
+		//	c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+		//	c.Abort()
+		//	return
+		//}
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.Abort()
+			return
+		}
+
+		userID, ok := claims["user_id"].(string)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.Abort()
+			return
+		}
+		c.Set("userID", userID)
+		c.Next()
 	}
-
-	if !token.Valid {
-		return "", jwt.ErrSignatureInvalid
-	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return "", jwt.ErrSignatureInvalid
-	}
-
-	userID, ok := claims["user_id"].(string)
-	if !ok {
-		return "", jwt.ErrSignatureInvalid
-	}
-
-	return userID, nil
 }

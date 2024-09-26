@@ -146,6 +146,13 @@ func TestDockerManager(t *testing.T) {
 		t.Log(result)
 	}
 
+	result, err = dm.ExecuteShellCommand(containerID, []string{"ls", "-l"})
+	if err != nil {
+		t.Logf("Error executing command: %v", err)
+	} else {
+		t.Log(result)
+	}
+
 	result, err = dm.MakeValidatorKeysAndStakeQuotas(containerID)
 	if err != nil {
 		t.Logf("Error generating validator keys and stake quotas: %v", err)
