@@ -64,18 +64,20 @@ func (s *Server) setupRoutes() {
 		protected.POST("/container/exec", handler.Exec)
 		protected.POST("/container/stop", handler.StopContainer)
 		protected.POST("/container/remove", handler.RemoveContainer)
-		protected.GET("/consensus-status", handler.GetConsensusStatus)
-		protected.GET("/txpool-status", handler.GetTxpoolStatus)
-		protected.GET("/block", handler.GetBlockAtHeight)
-		protected.POST("/create-cluster-factory", handler.CreateLocalClusterFactory)
-		protected.POST("/make-local-addresses", handler.MakeLocalAddresses)
-		protected.POST("/make-validator-keys", handler.MakeValidatorKeysAndStakeQuotas)
-		protected.POST("/write-genesis-files", handler.WriteGenesisFiles)
-		protected.POST("/build-blockchain", handler.BuildBlockchainBinary)
-		protected.POST("/reset-working-directory", handler.ResetWorkingDirectory)
-		protected.POST("/cluster/create", handler.CreateCluster)
-		protected.POST("/cluster/start", handler.StartCluster)
-		protected.POST("/cluster/stop", handler.StopCluster)
+
+		// deprecated
+		//protected.GET("/consensus-status", handler.GetConsensusStatus)
+		//protected.GET("/txpool-status", handler.GetTxpoolStatus)
+		//protected.GET("/block", handler.GetBlockAtHeight)
+		//protected.POST("/create-cluster-factory", handler.CreateLocalClusterFactory)
+		//protected.POST("/make-local-addresses", handler.MakeLocalAddresses)
+		//protected.POST("/make-validator-keys", handler.MakeValidatorKeysAndStakeQuotas)
+		//protected.POST("/write-genesis-files", handler.WriteGenesisFiles)
+		//protected.POST("/build-blockchain", handler.BuildBlockchainBinary)
+		//protected.POST("/reset-working-directory", handler.ResetWorkingDirectory)
+		//protected.POST("/cluster/create", handler.CreateCluster)
+		//protected.POST("/cluster/start", handler.StartCluster)
+		//protected.POST("/cluster/stop", handler.StopCluster)
 		// 添加其他需要验证的路由...
 	}
 }
